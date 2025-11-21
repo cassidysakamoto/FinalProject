@@ -89,13 +89,6 @@ def save_dictionary(words: List[str]) -> None:
 
 # ---------------- Recorder adapter ----------------
 class RecorderAdapter:
-    """
-    Minimal interface your audio team can implement and pass into the UI:
-      - start(on_level: Callable[[float], None]) -> None
-      - stop() -> None
-      - is_running() -> bool
-    on_level should be called with RMS-like value in [0, ~0.7] at ~10–20 Hz.
-    """
     def start(self, on_level: Callable[[float], None]) -> None: ...
     def stop(self) -> None: ...
     def is_running(self) -> bool: return False
