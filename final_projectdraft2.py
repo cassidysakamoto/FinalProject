@@ -14,8 +14,10 @@ import numpy as np
 import time, struct, sys, threading
 import speech_recognition as sr
 
-
 #===========================================================
+
+
+
 #Class for microphone input- reads audio in chunks
 #===========================================================
 class MicrophoneInput:
@@ -70,7 +72,8 @@ class MicrophoneInput:
         #Importing from the sounddevice library
         #InputStream is a class in sd library - allows an audio input stream
         self.stream = sd.InputStream(
-            device=10,    # Device ID
+            device=9
+            ,    # Device ID
             channels=1,  #1 channel: Mono audio input
             samplerate=self.rate,  #sample rate for audio
             #telling sd library to call audio_callback whenever it recieves audio
@@ -89,9 +92,7 @@ class MicrophoneInput:
 
 
 
-
-#===========================================================
-#Part 2: transcription (kept mostly identical)
+#Part 2: transcription
 #===========================================================
 
 # Audio and framing
@@ -118,9 +119,9 @@ DOMAIN_REPLACE = {
 recognizer = sr.Recognizer()
 
 
-#-----------------------------------------------------------
+
 #Helper functions for processing + recognition
-#-----------------------------------------------------------
+#===========================================================
 
 def frame_energy(frame_bytes: bytes) -> int:
     n = len(frame_bytes) // 2
@@ -145,9 +146,11 @@ def normalize_text(text: str) -> str:
     return t[0].upper() + t[1:] if t else t
 
 
-#-----------------------------------------------------------
+
+
+
 #Integration between mic stream and transcription
-#-----------------------------------------------------------
+#===========================================================
 
 frames = []          # will hold individual short chunks (~20ms)
 chunk_id = 0
@@ -201,7 +204,7 @@ def transcribe_chunk(raw, chunk_id, t_start, t_end):
             else:
                 print(f"Warning chunk {chunk_id} failed after {RETRY_LIMIT} attempts: {e}")
 
-    # Print results using your original formatting
+
     timing = f"[chunk {chunk_id} {t_start:.3f}-{t_end:.3f}]"
     if text:
         out = normalize_text(text)
@@ -212,8 +215,8 @@ def transcribe_chunk(raw, chunk_id, t_start, t_end):
 
 
 
-#===========================================================
-#Main execution
+
+#Main
 #===========================================================
 
 if __name__ == "__main__":
