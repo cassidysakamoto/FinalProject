@@ -768,20 +768,8 @@ class App(tk.Tk):
 
     def _selected(self) -> Optional[Note]:
         """
-        Return the currently active Note.
-
-        Prefer the note identified by self.selected_id (the note being edited),
-        and fall back to the Listbox selection if needed. This lets actions like
-        Export and Delete operate on the open note even if the Listbox briefly
-        loses its visual selection.
+        Return the note currently selected in the Listbox.
         """
-        # First try to resolve using selected_id.
-        if self.selected_id is not None:
-            for n in self.notes:
-                if n.id == self.selected_id:
-                    return n
-
-        # Fallback: use the Listbox selection.
         sel = self.listbox.curselection()
         if not sel:
             return None
