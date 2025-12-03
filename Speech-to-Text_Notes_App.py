@@ -744,17 +744,44 @@ class App(tk.Tk):
     def _refresh_list(self):
         """
         Refresh the Listbox contents based on the current filtered notes.
+
+        Keeps the current selection (self.selected_id) whenever possible so
+        autosave or other refreshes do not "lose" which note is active.
         """
+        items = self._filtered()
+
+        # Rebuild the listbox entries.
         self.listbox.delete(0, "end")
-        for n in self._filtered():
+        for n in items:
             date = time.strftime("%Y-%m-%d", time.localtime(n.createdAt / 1000))
             tags = ", ".join(n.tags) if n.tags else ""
             self.listbox.insert("end", f"{n.title}   • {date}   • {tags}")
 
+        # Try to restore selection based on selected_id.
+        if self.selected_id is not None:
+            for idx, n in enumerate(items):
+                if n.id == self.selected_id:
+                    self.listbox.selection_set(idx)
+                    self.listbox.activate(idx)
+                    self.listbox.see(idx)
+                    break
+
     def _selected(self) -> Optional[Note]:
         """
-        Return the currently selected Note, or None if nothing is selected.
+        Return the currently active Note.
+
+        Prefer the note identified by self.selected_id (the note being edited),
+        and fall back to the Listbox selection if needed. This lets actions like
+        Export and Delete operate on the open note even if the Listbox briefly
+        loses its visual selection.
         """
+        # First try to resolve using selected_id.
+        if self.selected_id is not None:
+            for n in self.notes:
+                if n.id == self.selected_id:
+                    return n
+
+        # Fallback: use the Listbox selection.
         sel = self.listbox.curselection()
         if not sel:
             return None
