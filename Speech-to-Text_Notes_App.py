@@ -43,8 +43,8 @@ class MicrophoneInput:
         param chunk_dur: Duration of each audio chunk in seconds.
         """
         self.threshold = threshold                      # RMS noise gate threshold
-        self.quiet_frames = 0       # counts consecutive quiet frames
-        self.gate_limit = 5         # number of consecutive quiet frames required to gate
+        self.quiet_frames = 0                           # counts consecutive quiet frames
+        self.gate_limit = 5                             # number of consecutive quiet frames required to gate
         self.rate = sample_rate                         # Audio sample rate (Hz)
         self.chunk_dur = chunk_dur                      # Chunk duration in seconds
         self.chunk_size = int(self.rate * chunk_dur)    # Samples per chunk
