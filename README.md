@@ -124,10 +124,36 @@ The system is build around three major components:
    - Editable domain dictionary for technical vocabulary
 The system uses thread-safe callbacks to avoid blocking real-time audio capture or UI updates.
 
-Results, Outputs, and Demo Screenshots
+Results
 Noise Gate Tests
+Higher thresholds suppressed too much speech, while lower thresholds increased noise but preserved accuracy. See results below:
+High Threshold (0.03)
 <img width="2156" height="500" alt="ThresholdHigh" src="https://github.com/user-attachments/assets/37a05093-89ec-4d8b-ba0b-97091e826753" />
 
+Medium Threshold (0.002)
+<img width="2156" height="416" alt="ThresholdMedium" src="https://github.com/user-attachments/assets/e567a80d-2f3f-4f1f-91b6-d1afc10eb58c" />
+
+No Threshold (0)
+<img width="2166" height="426" alt="ThresholdLow" src="https://github.com/user-attachments/assets/fea34811-ce93-4463-a6c6-a280ce99a5ac" />
+
+Chunk Length Tests
+Shorter chunks improved latency but reduced accuracy, while longer chunks provided superior recognition at the cost of increased delay. See results below:
+High Chunk Length (2000 ms)
+<img width="2150" height="470" alt="ChunkLengthHigh" src="https://github.com/user-attachments/assets/33508506-6b19-45e9-8997-b69aaf14812f" />
+
+Medium Chunk Length (1000 ms)
+<img width="2154" height="422" alt="ChunkLengthMedium" src="https://github.com/user-attachments/assets/d0d46733-dcac-4285-b5bc-8a8854e3ecfc" />
+
+Low Chunk Length (200 ms)
+<img width="2164" height="416" alt="ChunkLengthLow" src="https://github.com/user-attachments/assets/634711c5-043d-418d-abc6-dbb313e5596c" />
+
+Note Length Tests
+Longer notes and shorter notes maintained high accuracy with longer notes being slightly more inaccurate due to chunk timings. See results below:
+Short Note Length
+<img width="1086" height="426" alt="ScriptShort" src="https://github.com/user-attachments/assets/cfaad01f-f9e3-462a-9d7c-ae819f1bc140" />
+
+Long Note Length
+<img width="1076" height="270" alt="ScriptLong" src="https://github.com/user-attachments/assets/91d34184-dd27-4d67-a62b-51fdb48fa082" />
 
 Known Limitations / Future Improvements
 - Google Web Speech API requires internet; offline transcription model optional but not yet implemented
