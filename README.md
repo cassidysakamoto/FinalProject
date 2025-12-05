@@ -126,6 +126,8 @@ The system uses thread-safe callbacks to avoid blocking real-time audio capture 
 
 Results, Outputs, and Demo Screenshots
 Noise Gate Tests
+<img width="2156" height="500" alt="ThresholdHigh" src="https://github.com/user-attachments/assets/37a05093-89ec-4d8b-ba0b-97091e826753" />
+
 
 Known Limitations / Future Improvements
 - Google Web Speech API requires internet; offline transcription model optional but not yet implemented
