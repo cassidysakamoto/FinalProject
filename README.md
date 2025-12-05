@@ -35,7 +35,7 @@ Full Notes Management System
     - Created / Updated timestamps
     - Recording Duration
 Recording Tools
-  - Start / Stop microphone captyre with visible duration timer.
+  - Start / Stop microphone capture with visible duration timer.
   - Insert timestamp markers ( [mm:ss] ) into text while recording.
   - Autosave system prevents data loss (configurable delay, default 800 ms).
 Local Storage + Export
