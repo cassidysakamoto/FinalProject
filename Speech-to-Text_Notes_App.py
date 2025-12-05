@@ -1043,9 +1043,9 @@ class App(tk.Tk):
             self._set_status("Settings saved")
             win.destroy()
 
-            ttk.Button(win, text="Save", command=save_and_close).grid(
-                row=row, column=0, columnspan=2, pady=(8, 8)
-            )
+        ttk.Button(win, text="Save", command=save_and_close).grid(
+            row=row, column=0, columnspan=2, pady=(8, 8)
+        )
 
     def _open_dictionary(self):
         """
