@@ -107,7 +107,7 @@ class MicrophoneInput:
 
         # Create an input audio stream from the sounddevice library.
         self.stream = sd.InputStream(
-            device=9,                       # Input device ID (update as needed for your system)
+            # device=9,                       # Input device ID (update as needed for your system)
             channels=1,                     # Mono input
             samplerate=self.rate,           # Sample rate in Hz
             callback=self.audio_callback  # Called whenever new audio arrives
