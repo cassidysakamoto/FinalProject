@@ -61,32 +61,6 @@ Tkinter User Interface
   - Mic level bar and status ("Good", "Too quiet", "Too loud").
   - Keyboard shortcuts (Ctrl+S, Ctrl+N, Ctrl+F, etc.).
 
-Project Architecture
-┌────────────────────┐
-│ MicrophoneInput     │  <-- sounddevice stream
-│  • RMS computation  │
-│  • Chunk framing    │
-└─────────┬──────────┘
-          │ raw PCM frames
-          ▼
-┌────────────────────┐
-│ Transcription       │ <-- speech_recognition + Google API
-│  • Retry logic      │
-│  • Normalization    │
-│  • Chunk timestamps │
-└─────────┬──────────┘
-          │ clean sentences
-          ▼
-┌────────────────────┐
-│ Tkinter UI (App)   │
-│  • Note creation    │
-│  • Autosave         │
-│  • Search/filtering │
-│  • Timestamp marks  │
-│  • Export           │
-└────────────────────┘
-This design cleanly isolates responsibilities and ensures the UI remains responsive while audio and transcription run in background threads. (Architecture based on the integrated code structure in Speech-to-Text_Notes_App.)
-
 How to Run Application
 1. Install Dependencies
 Python 3.10+ recommended.
@@ -94,8 +68,9 @@ Python 3.10+ recommended.
 Aditionally, your system must support Google Web Speech API (requires internet unless using a local model extension).
 2. Run the Full Application
   python Speech-to-Text_Notes_app.py
+  (if this file does not run or transcription does not work, it may be a hardware issue. Please use UI2.py if either issue is ran into.)
 This launches the Tkinter UI and prepares the microphone backend. The file can also be launched in an IDE of choice such as Spyder.
-3. Using the UI
+4. Using the UI
   - Click Start Recording
   - Speak into your microphone
   - View live mic levels as you talk
