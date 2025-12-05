@@ -43,6 +43,8 @@ class MicrophoneInput:
         param chunk_dur: Duration of each audio chunk in seconds.
         """
         self.threshold = threshold                      # RMS noise gate threshold
+        self.quiet_frames = 0       # counts consecutive quiet frames
+        self.gate_limit = 5         # number of consecutive quiet frames required to gate
         self.rate = sample_rate                         # Audio sample rate (Hz)
         self.chunk_dur = chunk_dur                      # Chunk duration in seconds
         self.chunk_size = int(self.rate * chunk_dur)    # Samples per chunk
@@ -77,9 +79,14 @@ class MicrophoneInput:
         if self.level_callback:
             self.level_callback(float(rms))
 
-        # Optional noise gate: if level is below threshold, treat as silence
-        # and do NOT forward audio to the transcription pipeline.
+       # Noise gate (Option 2A): require several consecutive quiet frames before gating
         if rms < self.threshold:
+            self.quiet_frames += 1
+        else:
+            self.quiet_frames = 0  # reset on speech
+
+        # If quiet for too long, do not forward audio for transcription
+        if self.quiet_frames > self.gate_limit:
             return
 
         # Send audio chunk to the registered processing callback, if any.
