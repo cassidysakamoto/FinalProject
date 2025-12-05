@@ -1,9 +1,12 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov 21 12:53:59 2025
-
-@author: cassi
-"""
+# ============================================
+# STT Notes App: Mic + Transcription + Tk UI
+# Cassidy Sakamoto, Nathan Tan, and Justin Glabicki
+# ============================================
+#
+# - Captures microphone audio in small chunks using sounddevice.
+# - Streams audio into a simple transcription backend (Google Web API).
+# - Normalizes text and sends completed segments into a Tkinter notes UI.
+# - Notes (with tags, timestamps, and durations) are stored in local JSON files.
 
 # =========================
 # BACKEND: Mic + Transcription
@@ -25,24 +28,44 @@ import time, struct, sys, threading
 import speech_recognition as sr
 
 # ===========================================================
-
 # Class for microphone input- reads audio in chunks
 # ===========================================================
 class MicrophoneInput:
+    """
+    Wraps a sounddevice InputStream to capture mono audio in small chunks.
+
+    - Calls audio_callback every time the sounddevice stream has new audio.
+    - Computes an RMS level for a simple mic level meter.
+    - Forwards the audio chunk to a user callback for transcription.
+    """
     def __init__(self, threshold=0.0000001, sample_rate=48000, chunk_dur=0.02):
+        """
+        Initialize microphone input parameters.
+
+        param threshold: Noise gate RMS threshold (float).
+        param sample_rate: Sampling rate in Hz.
+        param chunk_dur: Duration of each audio chunk in seconds.
+        """
         self.threshold = threshold   # noise gate threshold
         self.rate = sample_rate      # audio sample rate
         self.chunk_dur = chunk_dur   # duration (s) of each audio chunk
         self.chunk_size = int(self.rate * chunk_dur)  # samples per chunk
         self.stream = None    # initialize stream as none (stream is the mic stream)
         self.callback = None   # initialize callback (audio_callback) as none
-        # NEW: callback for mic level so UI can display it
+        # Callback for mic level so UI can display it
         self.level_callback = None
 
     # processing audio input, called every time audio comes in from mic
     # indata is the audio chunk, frames are # of frames in chunk
     def audio_callback(self, indata, frames, time_info, status):
+        """
+        sounddevice callback.
 
+        - flattens input audio into a 1D NumPy array,
+        - calculates RMS for a volume meter,
+        - optionally forwards RMS to a level_callback,
+        - forwards audio to the transcription callback if set.
+        """
         # Check for errors
         if status:
             print(f"Stream status: {status}")
@@ -59,7 +82,7 @@ class MicrophoneInput:
         bar = "#" * int(rms * 50)  # volume bar using #
         print(f"Mic Level: {bar} ({rms:.3f})")
 
-        # NEW: send level to UI if a level_callback is set
+        # Send level to UI if a level_callback is set
         if self.level_callback:
             self.level_callback(float(rms))
 
@@ -76,10 +99,15 @@ class MicrophoneInput:
 
     # Start listening to mic
     def start_stream(self, callback=None, level_callback=None):
+        """
+        Start the microphone stream and register callbacks.
 
+        :param callback: Function taking one NumPy array of audio samples (float32).
+        :param level_callback: Function taking a float RMS level for visual feedback.
+        """
         # save callback
         self.callback = callback
-        # NEW: save level callback too
+        # Save level callback too
         self.level_callback = level_callback
 
         # Importing from the sounddevice library
@@ -96,14 +124,16 @@ class MicrophoneInput:
         print("Microphone stream started")
 
     def stop_stream(self):
-
+        """
+        Stop and close the microphone stream if it is currently running.
+        """
         if self.stream:
             self.stream.stop()
             self.stream.close()
             self.stream = None
             print("Microphone stream stopped")
 
-
+# ===========================================================
 # Part 2: transcription
 # ===========================================================
 
@@ -115,10 +145,12 @@ BYTES_PER_SAMPLE = 2
 CHUNK_FRAMES = int(6000 / FRAME_MS)                 # 6 s => 100 frames
 
 # Logic
+# Transcription logic parameters
 RETRY_LIMIT = 3
 ENERGY_MIN = 200
 
 # Domain replacements and light punctuation
+# Domain-specific replacements and light punctuation handling
 DOMAIN_REPLACE = {
     "r c": "RC",
     "p w m": "PWM",
@@ -128,15 +160,24 @@ DOMAIN_REPLACE = {
     "so c": "SoC",
 }
 
+# Global speech recognizer instance (Google Web API)
 recognizer = sr.Recognizer()
 
-# NEW: global callback so UI can receive finished text chunks
+# Global callback so UI can receive finished text chunks
 transcript_callback = None
 
+# ===========================================================
 # Helper functions for processing + recognition
 # ===========================================================
 
 def frame_energy(frame_bytes: bytes) -> int:
+    """
+    Compute average absolute sample value (a basic energy measure)
+    for a frame of 16-bit PCM audio.
+
+    param frame_bytes: Raw PCM data.
+    return: Average magnitude across samples (integer).
+    """
     n = len(frame_bytes) // 2
     if n == 0:
         return 0
@@ -146,10 +187,27 @@ def frame_energy(frame_bytes: bytes) -> int:
     return total // n
 
 def recognize_google_raw(raw_pcm: bytes) -> str:
+    """
+    Run Google Web Speech API on a chunk of raw 16-bit PCM audio.
+
+    param raw_pcm: Raw PCM bytes (little-endian, 16-bit).
+    return: Recognized text string (may raise exceptions on error).
+    """
     audio = sr.AudioData(raw_pcm, RATE, BYTES_PER_SAMPLE)
     return recognizer.recognize_google(audio)
 
 def normalize_text(text: str) -> str:
+    """
+    Normalize transcribed text:
+    - make lowercase for matching,
+    - apply domain-specific phrase replacements,
+    - collapse extra whitespace,
+    - ensure a simple trailing punctuation mark,
+    - then capitalize the first character.
+
+    param text: Raw text from recognizer.
+    return: Cleaned, nicely formatted sentence. 
+    """
     t = " " + text.lower() + " "
     for k, v in DOMAIN_REPLACE.items():
         t = t.replace(f" {k} ", f" {v} ")
@@ -158,9 +216,11 @@ def normalize_text(text: str) -> str:
         t += "."
     return t[0].upper() + t[1:] if t else t
 
+# ===========================================================
 # Integration between mic stream and transcription
 # ===========================================================
 
+# Collections for time-stamped chunks and partial transcripts
 frames = []          # will hold individual short chunks (~20ms)
 chunk_id = 0
 partials = []        # partial transcripts
@@ -168,9 +228,15 @@ t_chunk_start = time.time()
 
 # Runs every time mic produces a chunk of audio
 def process_audio(chunk_np):
+    """
+    Receive a NumPy chunk from the microphone callback and:
+    - convert it to 16-bit PCM bytes,
+    - accumulate frames until we reach a chunk length,
+    - then spawn a background thread to transcribe the chunk.
+    """
     global frames, chunk_id, t_chunk_start
 
-    # Convert float32 (-1.0 to 1.0) → 16-bit PCM bytes
+    # Convert float32 (-1.0 to 1.0) -> 16-bit PCM bytes
     frame_bytes = (chunk_np * 32767).astype(np.int16).tobytes()
     frames.append(frame_bytes)
 
@@ -191,7 +257,13 @@ def process_audio(chunk_np):
         t_chunk_start = time.time()
 
 def transcribe_chunk(raw, chunk_id, t_start, t_end):
-    """Performs transcription with retry logic"""
+    """
+    Perform recognition with retry logic, normalize the text, and
+    call the global transcript_callback (if present).
+
+    - UnknownValueError: print a warning and skip text.
+    - RequestError: retry a few times before giving up.
+    """
     global transcript_callback
 
     err = None
@@ -217,7 +289,7 @@ def transcribe_chunk(raw, chunk_id, t_start, t_end):
         out = normalize_text(text)
         partials.append(out)
         print(f"{timing} {out}")
-        # NEW: send text to UI if a handler is registered
+        # Send text to UI if a handler is registered
         if transcript_callback:
             try:
                 transcript_callback(out)
@@ -247,20 +319,36 @@ CONFIG_FILE = DATA_DIR / "config.json"
 DICT_FILE = DATA_DIR / "dictionary.json"
 
 def now_ms() -> int:
+    """
+    Return current time in milliseconds since the epoch.
+    """
     return int(time.time() * 1000)
 
 def format_time(ms: int) -> str:
+    """
+    Format a millisecond duration as MM:SS for display.
+    """
     s = ms // 1000
     m, sec = (s % 3600) // 60, s % 60
     return f"{m:02d}:{sec:02d}"
 
 def slugify(name: str) -> str:
+    """
+    Convert a note title into a safe file-name-like slug.
+    """
     keep = "".join(c if (c.isalnum() or c in " -_") else "_" for c in name)
     return "_".join(keep.strip().split())
 
 # ---------------- Data model ----------------
 @dataclass
 class Note:
+    """
+    Represents a single saved note, including:
+    - title and content,
+    - tags,
+    - creation and update timestamps,
+    - recording duration in milliseconds.
+    """
     id: str
     title: str
     content: str
@@ -270,6 +358,10 @@ class Note:
     durationMs: int = 0
 
 def load_notes() -> List[Note]:
+    """
+    Load all notes from NOTES_FILE (JSON). If anything goes wrong,
+    return an empty list instead of crashing.
+    """
     if NOTES_FILE.exists():
         try:
             raw = json.loads(NOTES_FILE.read_text(encoding="utf-8"))
@@ -279,10 +371,17 @@ def load_notes() -> List[Note]:
     return []
 
 def save_notes(notes: List[Note]) -> None:
+    """
+    Serialize the list of Note objects back to NOTES_FILE as JSON.
+    """
     NOTES_FILE.write_text(json.dumps([asdict(n) for n in notes], indent=2), encoding="utf-8")
 
 # --- config / dictionary helpers ---
 def load_config() -> dict:
+    """
+    Load UI + backend configuration from CONFIG_FILE, or return
+    a default configuration if the file is missing or invalid.
+    """
     if CONFIG_FILE.exists():
         try:
             return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
@@ -299,9 +398,16 @@ def load_config() -> dict:
     }
 
 def save_config(cfg: dict) -> None:
+    """
+    Save configuration dictionary to CONFIG_FILE as JSON.
+    """
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
 
 def load_dictionary() -> List[str]:
+    """
+    Load a simple list of domain-specific words from DICT_FILE.
+    Returns an empty list if missing or invalid.
+    """
     if DICT_FILE.exists():
         try:
             data = json.loads(DICT_FILE.read_text(encoding="utf-8"))
@@ -312,10 +418,18 @@ def load_dictionary() -> List[str]:
     return []
 
 def save_dictionary(words: List[str]) -> None:
+    """
+    Persist the domain dictionary as a sorted list of unique words.
+    """
     DICT_FILE.write_text(json.dumps(sorted(set(words)), indent=2), encoding="utf-8")
 
 # ---------------- (Original) Recorder adapter ----------------
 class RecorderAdapter:
+    """
+    Abstract interface for something that can provide mic levels
+    to the UI. The real implementation is MicrophoneInput; this
+    adapter is left for reference and future extension.
+    """
     def start(self, on_level: Callable[[float], None]) -> None: ...
     def stop(self) -> None: ...
     def is_running(self) -> bool: return False
@@ -328,10 +442,17 @@ class DummyRecorder(RecorderAdapter):
         self._cb: Optional[Callable[[float], None]] = None
 
     def start(self, on_level: Callable[[float], None]) -> None:
+        """
+        Start generating fake mic levels and call on_level periodically.
+        """
         self._running, self._cb = True, on_level
         self._tick()
 
     def _tick(self):
+        """
+        Internal periodic callback that updates the fake mic level
+        while the dummy recorder is running.
+        """
         if not self._running: return
         # Simulate quiet->good->loud range
         level = max(0.0, min(0.6, random.uniform(0.01, 0.5)))
@@ -339,15 +460,28 @@ class DummyRecorder(RecorderAdapter):
         self.root.after(80, self._tick)
 
     def stop(self) -> None:
+        """
+        Stop generating dummy mic levels.
+        """
         self._running = False
         self._cb = None
 
     def is_running(self) -> bool:
+        """
+        Return True if the dummy recorder is currently running.
+        """
         return self._running
 
 
 # ---------------- UI ----------------
 class App(tk.Tk):
+    """
+    Main Tkinter application for the STT notes app.
+
+    - Manages note list, search, tags, and content editor.
+    - Hooks into the microphone/transcription backend.
+    - Handles autosave, exporting, and simple settings.
+    """
     def __init__(self):
         super().__init__()
         self.title("STT Notes")
@@ -371,7 +505,7 @@ class App(tk.Tk):
         self.rec_start_ms = 0
         self.elapsed_ms = 0
         self.level_val = 0.0
-        self.recording = False  # NEW: replace recorder.is_running()
+        self.recording = False  # Replace recorder.is_running()
 
         # REAL mic input using the backend MicrophoneInput
         noise_gate = float(self.config_data.get("noise_gate_threshold", 0.002) or 0.0)
@@ -399,6 +533,10 @@ class App(tk.Tk):
 
     # ----- layout -----
     def _build(self):
+        """
+        Construct the main window layout: sidebar, editor, controls,
+        level meter, and footer.
+        """
         self.columnconfigure(0, weight=0)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
@@ -463,7 +601,7 @@ class App(tk.Tk):
         self.tags_entry.grid(row=2, column=0, sticky="ew", pady=(0, 8))
         self.tags_entry.insert(0, "tags, comma, separated")
 
-        # Track edits from title/tags
+        # Track edits from title / tags
         self.title_var.trace_add("write", self._on_content_edited)
         self.tags_var.trace_add("write", self._on_content_edited)
 
@@ -491,6 +629,10 @@ class App(tk.Tk):
 
     # ----- shortcuts -----
     def _bind_shortcuts(self):
+        """
+        Bind common keyboard shortcuts for new note, save, search,
+        dictionary, and settings.
+        """
         self.bind_all("<Control-n>", lambda e: self._new_note())
         self.bind_all("<Control-s>", lambda e: self._save())
         self.bind_all("<Control-f>", lambda e: self._focus_search())
@@ -498,14 +640,23 @@ class App(tk.Tk):
         self.bind_all("<Control-comma>", lambda e: self._open_settings())
 
     def _focus_search(self):
+        """
+        Focus and select the search box in the sidebar.
+        """
         self.search_entry.focus_set()
         self.search_entry.select_range(0, "end")
 
     def _set_status(self, msg: str):
+        """
+        Update the status bar message at the bottom of the window.
+        """
         self.status_var.set(msg)
 
     # ----- recording controls (now using real MicrophoneInput) -----
     def _start(self):
+        """
+        Start a new microphone recording session and update UI state.
+        """
         if self.recording:
             return
         self.rec_start_ms = now_ms()
@@ -521,6 +672,9 @@ class App(tk.Tk):
         self._set_status("Recording...")
 
     def _stop(self):
+        """
+        Stop the current recording session and update UI state.
+        """
         if not self.recording:
             return
         self.mic.stop_stream()
@@ -532,10 +686,17 @@ class App(tk.Tk):
         self._set_status(f"Stopped. Duration {format_time(self.elapsed_ms)}")
 
     def _on_level(self, val: float):
+        """
+        Receive a new RMS level from the mic backend and store it.
+        The UI is updated periodically by _ui_tick.
+        """
         # Called from the mic callback thread; UI-safe update is done in _ui_tick
         self.level_val = max(0.0, float(val))
 
     def _mark(self):
+        """
+        Insert a timestamp marker into the note based on elapsed recording time.
+        """
         elapsed = (now_ms() - self.rec_start_ms) if self.recording else self.elapsed_ms
         self.text.insert("end", f"\n[{format_time(elapsed)}] ")
         self._on_content_edited()
@@ -551,6 +712,10 @@ class App(tk.Tk):
 
     # ----- notes list / search -----
     def _filtered(self) -> List[Note]:
+        """
+        Return the list of notes filtered by the current search query,
+        sorted by most recently updated.
+        """
         q = self.query_var.get().strip().lower()
         notes = sorted(self.notes, key=lambda n: n.updatedAt, reverse=True)
         if not q:
@@ -564,6 +729,9 @@ class App(tk.Tk):
         return out
 
     def _refresh_list(self):
+        """
+        Refresh the sidebar listbox to reflect the current filtered notes.
+        """
         self.listbox.delete(0, "end")
         for n in self._filtered():
             date = time.strftime("%Y-%m-%d", time.localtime(n.createdAt / 1000))
@@ -571,6 +739,10 @@ class App(tk.Tk):
             self.listbox.insert("end", f"{n.title}   • {date}   • {tags}")
 
     def _selected(self) -> Optional[Note]:
+        """
+        Return the currently selected Note object (respecting the
+        filtered view), or None if nothing is selected.
+        """
         sel = self.listbox.curselection()
         if not sel:
             return None
@@ -581,6 +753,9 @@ class App(tk.Tk):
         return None
 
     def _on_select(self, _evt=None):
+        """
+        Load the selected note into the editor area (title, tags, content).
+        """
         n = self._selected()
         if not n:
             return
@@ -597,6 +772,10 @@ class App(tk.Tk):
 
     # ----- edit tracking -----
     def _on_text_modified(self, _evt=None):
+        """
+        Track changes coming from the Text widget and update the last
+        edit timestamp for autosave.
+        """
         if self.loading_note:
             self.text.edit_modified(False)
             return
@@ -604,11 +783,18 @@ class App(tk.Tk):
         self.text.edit_modified(False)
 
     def _on_content_edited(self, *args):
+        """
+        Called when title, tags, or text content changes. Updates the
+        last_edit_ms timestamp for autosave logic.
+        """
         if self.loading_note:
             return
         self.last_edit_ms = now_ms()
 
     def _has_meaningful_content(self) -> bool:
+        """
+        Check whether the current note has any non-empty title, tags, or body.
+        """
         if self.text.get("1.0", "end").strip():
             return True
         if self.title_var.get().strip():
@@ -634,6 +820,10 @@ class App(tk.Tk):
         self._set_status("New note")
 
     def _delete(self):
+        """
+        Delete the currently selected note after a confirmation dialog,
+        then refresh the list and clear the editor.
+        """
         n = self._selected()
         if not n:
             messagebox.showinfo("Delete", "Select a note to delete.")
@@ -662,6 +852,10 @@ class App(tk.Tk):
 
     # ----- save / export -----
     def _save(self, *, via_autosave: bool = False, show_popup: bool = True):
+        """
+        Save the current note (creating or updating as needed), respecting
+        autosave semantics and optionally showing a popup.
+        """
         if not self._has_meaningful_content() and via_autosave:
             # don't autosave completely empty notes
             return
@@ -716,6 +910,9 @@ class App(tk.Tk):
         self._refresh_list()
 
     def _export(self, kind: str):
+        """
+        Export the selected note's content to a .txt or .md file.
+        """
         n = self._selected()
         if not n:
             messagebox.showinfo("Export", "Select a note first.")
@@ -730,6 +927,10 @@ class App(tk.Tk):
 
     # ----- Settings / Dictionary -----
     def _open_settings(self):
+        """
+        Open (or raise) the Settings dialog to tweak autosave and
+        basic backend parameters.
+        """
         if hasattr(self, "_settings_win") and self._settings_win.winfo_exists():
             self._settings_win.lift()
             return
@@ -774,6 +975,9 @@ class App(tk.Tk):
         row += 1
 
         def save_and_close():
+            """
+            Persist updated settings and close the dialog.
+            """
             self.config_data["autosave_enabled"] = bool(autosave_var.get())
             self.config_data["autosave_delay_ms"] = max(100, int(delay_var.get() or 0))
             self.config_data["noise_gate_threshold"] = float(noise_var.get() or 0.0)
@@ -789,6 +993,9 @@ class App(tk.Tk):
         )
 
     def _open_dictionary(self):
+        """
+        Open (or raise) the domain dictionary manager window.
+        """
         if hasattr(self, "_dict_win") and self._dict_win.winfo_exists():
             self._dict_win.lift()
             return
@@ -816,6 +1023,9 @@ class App(tk.Tk):
         frame.columnconfigure(0, weight=1)
 
         def add_word():
+            """
+            Add a new word from the entry field to the dictionary.
+            """
             w = entry_var.get().strip()
             if not w:
                 return
@@ -827,6 +1037,9 @@ class App(tk.Tk):
             entry_var.set("")
 
         def delete_selected():
+            """
+            Remove the currently selected word from the dictionary.
+            """
             sel = listbox.curselection()
             if not sel:
                 return
@@ -846,6 +1059,12 @@ class App(tk.Tk):
 
     # ----- UI ticker -----
     def _ui_tick(self):
+        """
+        Periodic UI update:
+        - redraws the mic level meter and label,
+        - updates the Stop button timer while recording,
+        - checks whether it's time to autosave.
+        """
         # meter bar & label
         pct = max(0.0, min(1.0, self.level_val * 1.8))
         self.level_canvas.coords(self.level_bar, 0, 0, int(180 * pct), 10)

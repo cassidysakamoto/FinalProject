@@ -98,8 +98,8 @@ class MicrophoneInput:
         """
         Start the microphone stream and register callbacks.
 
-        :param callback: Function taking one NumPy array of audio samples (float32).
-        :param level_callback: Function taking a float RMS level for visual feedback.
+        param callback: Function taking one NumPy array of audio samples (float32).
+        param level_callback: Function taking a float RMS level for visual feedback.
         """
         # Save user callbacks for audio and level.
         self.callback = callback
@@ -901,8 +901,8 @@ class App(tk.Tk):
         """
         Save the current note. If via_autosave is True, this is an autosave.
 
-        :param via_autosave: Set to True when called from the autosave logic.
-        :param show_popup: Show a confirmation popup if this is a manual save.
+        param via_autosave: Set to True when called from the autosave logic.
+        param show_popup: Show a confirmation popup if this is a manual save.
         """
         if not self._has_meaningful_content() and via_autosave:
             # Do not autosave completely empty notes.
