@@ -2,12 +2,19 @@
 Speech-to-Text Notes App
 Authors: Cassidy Sakamoto · Justin Glabicki · Nathan Tan
 Instructor: Dr. Fatema Nafa
-Date: 12/4/2025
+Date: 12/5/2025
 
 Overview:
 The Speech-to-Text Notes App is an end-to-end Python application that captures microphone  audio in real time, transcribes it into text, and integrates the results into a full-featured note-taking interface. Built with a modular architecture separating audio capture, speech  recognition, and a Tkinter- based user interface, the app provides users with an accessible  tool for hands-free note creation and organization.
 The project uses the sounddevice library for raw audio streaming, speech_recognition (Google  Web Speech API) for transcription, and Python’s built-in tkinter for the interactive note- editing environment. Notes are saved locally in JSON files, and users may export them in .txt or .md format.
 This README reflects the final integrated implementation (Mic -> Transcription Pipeline -> UI/Notes System).
+
+Goal of the Project:
+The goal of this project is to build a complete Speech-to-Text Notes Application that allows users to:
+- Record real-time microphone audio
+- Automatically transcribe speech into text
+- Edit, search, and organize notes
+- Export notes in .txt or .md format
 
 Features:
 Real-Time Audio Capture
@@ -68,7 +75,8 @@ Python 3.10+ recommended.
 Aditionally, your system must support Google Web Speech API (requires internet unless using a local model extension).
 2. Run the Full Application
   python Speech-to-Text_Notes_app.py
-  (if this file does not run or transcription does not work, it may be a hardware issue. Please use UI2.py if either issue is ran into.)
+  If you experience errors starting the mic or obtaining transcripts, try the secondary App    version:
+  python UI2.py
 This launches the Tkinter UI and prepares the microphone backend. The file can also be launched in an IDE of choice such as Spyder.
 4. Using the UI
   - Click Start Recording
@@ -78,13 +86,46 @@ This launches the Tkinter UI and prepares the microphone backend. The file can a
   - Use the Mark button to insert timestamps
   - Manage notes on the left sidebar
   - Export notes from the footer toolbar
+If transcription does not work:
+  - Your noise gate may be set too high.
+  - Set it to a low value such as 0-0.002 in: Settings -> Noise Gate Threshold
 
-File Structure
-- Speech-to-Text_Notes_App.py - main application (UI + backend integration)
-- stt_ui_data/
-  - notes.json - saved notes
-  - config.json - user-configurable parameters
-  - dictionary.json - domain-specific vocabulary
+Requirements & Dependencies
+- Python 3.10+
+- sounddevice - real-time audio capture
+- speech_recognition - Google Web API transcription
+- numpy - audio array operations
+- tkinter - graphical user interface (built into Python)
+- Local storage JSON files:
+  - notes.json
+  - config.json
+  - dictionary.json
+Data is stored automatically in stt_ui_data/
+
+Explanation of Approach / Methodology
+Architecture Overview
+The system is build around three major components:
+1. Microphone Audio Module
+   - Streams ~20 ms audio frames using sounddevice.InputStream
+   - Computes RMS level -> drives mic-level meter
+   - Noise-gate suppresses silent frames
+   - Forwards audio to the transcription pipeline
+2. Transcription Pipeline
+   - Combines ~6 seconds of audio into chunks
+   - Sends audio to Google's Speech Recognition API
+   - Retries failures up to max_retries
+   - Applies domain-specific corrections (e.g., "k h z" -> "kHz")
+   - Sends normalized text back to the UI thread
+3. Tkinter Notes UI
+   - Full notes editor (create, edit, delete, search)
+   - Autosave system (default 800 ms delay)
+   - Timestamp markers during recording
+   - Export to .txt or .md
+   - Editable domain dictionary for technical vocabulary
+The system uses thread-safe callbacks to avoid blocking real-time audio capture or UI updates.
+
+Results, Outputs, and Demo Screenshots
+Noise Gate Tests
 
 Known Limitations / Future Improvements
 - Google Web Speech API requires internet; offline transcription model optional but not yet implemented
