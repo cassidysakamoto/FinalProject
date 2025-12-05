@@ -77,10 +77,10 @@ class MicrophoneInput:
         if self.level_callback:
             self.level_callback(float(rms))
 
-        # Optional noise gate: we keep the chunk but note that it is very quiet.
+        # Optional noise gate: if level is below threshold, treat as silence
+        # and do NOT forward audio to the transcription pipeline.
         if rms < self.threshold:
-            # Currently we do not drop the audio; this just indicates silence.
-            pass
+            return
 
         # Send audio chunk to the registered processing callback, if any.
         if self.callback:
@@ -130,7 +130,11 @@ RATE = 48000
 FRAME_MS = 20
 SAMPLES_PER_FRAME = int(RATE * FRAME_MS / 1000)     # Samples per 20 ms
 BYTES_PER_SAMPLE = 2
-CHUNK_FRAMES = int(6000 / FRAME_MS)                 # ~6 s -> number of 20 ms frames
+
+# Default chunk length (ms); will be overridden by config at runtime
+CHUNK_MS = 6000                                     # ~6 s by default
+CHUNK_FRAMES = int(CHUNK_MS / FRAME_MS)             # Number of 20 ms frames per chunk
+
 
 # Transcription logic parameters
 RETRY_LIMIT = 3
@@ -504,7 +508,16 @@ class App(tk.Tk):
         # Config / dictionary
         self.config_data: dict = load_config()
         self.dictionary: List[str] = load_dictionary()
-
+        
+        # Apply chunk length from config to transcription backend
+        global CHUNK_MS, CHUNK_FRAMES
+        cfg_chunk = int(self.config_data.get("chunk_ms", 2000) or 2000)
+        CHUNK_MS = max(500, cfg_chunk)          # clamp to at least 500 ms
+        CHUNK_FRAMES = int(CHUNK_MS / FRAME_MS)
+        
+        global RETRY_LIMIT
+        RETRY_LIMIT = int(self.config_data.get("max_retries", 3))
+        
         # Autosave / edit tracking
         self.loading_note = False
         self.last_edit_ms = 0
@@ -1014,13 +1027,25 @@ class App(tk.Tk):
             self.config_data["chunk_ms"] = max(100, int(chunk_var.get() or 0))
             self.config_data["max_retries"] = max(0, int(retries_var.get() or 0))
             self.config_data["use_local_model"] = bool(local_var.get())
+
+            global RETRY_LIMIT
+            RETRY_LIMIT = int(self.config_data["max_retries"])
+            
+            # Apply updated settings to backend
+            global CHUNK_MS, CHUNK_FRAMES
+            CHUNK_MS = max(500, int(self.config_data["chunk_ms"]))
+            CHUNK_FRAMES = int(CHUNK_MS / FRAME_MS)
+
+            # Update mic noise gate threshold live (no restart needed)
+            self.mic.threshold = float(self.config_data["noise_gate_threshold"])
+
             save_config(self.config_data)
             self._set_status("Settings saved")
             win.destroy()
 
-        ttk.Button(win, text="Save", command=save_and_close).grid(
-            row=row, column=0, columnspan=2, pady=(8, 8)
-        )
+            ttk.Button(win, text="Save", command=save_and_close).grid(
+                row=row, column=0, columnspan=2, pady=(8, 8)
+            )
 
     def _open_dictionary(self):
         """
